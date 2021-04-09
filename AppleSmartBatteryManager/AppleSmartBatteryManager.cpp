@@ -60,9 +60,7 @@ bool AppleSmartBatteryManager::init(OSDictionary *dict)
 {
     bool result = super::init(dict);
     DebugLog("AppleSmartBatteryManager::init: Initializing\n");
-    
-    fTracker = NULL;
-    
+
     return result;
 }
 
@@ -111,10 +109,37 @@ bool AppleSmartBatteryManager::start(IOService *provider)
     if (!wl) {
         return false;
     }
+    
+    fBatteryServices = OSSet::withCapacity(1);
+    
+    OSDictionary * serviceMatch = serviceMatching("AppleSmartBattery");
+    
+    IOServiceMatchingNotificationHandler notificationHandler = OSMemberFunctionCast(
+            IOServiceMatchingNotificationHandler, this, &AppleSmartBatteryManager::notificationHandler);
+    
+    //
+    // Register notifications for availability of any AppleSmartBattery objects to notify of AC connection state changes
+    //
+    fPublishNotify = addMatchingNotification(gIOFirstPublishNotification,
+                                             serviceMatch,
+                                             notificationHandler,
+                                             this,
+                                             0, 10000);
+    
+    fTerminateNotify = addMatchingNotification(gIOTerminatedNotification,
+                                               serviceMatch,
+                                               notificationHandler,
+                                               this,
+                                               0, 10000);
+    
+    serviceMatch->release();
 
     // maybe waiting for SMC to load avoids startup problems on 10.13.x
-    if (RunningKernel() >= MakeKernelVersion(17,0,0))
-        waitForService(serviceMatching("AppleSMC"));
+    if (RunningKernel() >= MakeKernelVersion(17,0,0)) {
+        waitForService(serviceMatching("IODisplayWrangler"));
+        //waitForService(serviceMatching("AppleSMC"));
+        //IOSleep(15000);
+    }
 
     // Join power management so that we can get a notification early during
     // wakeup to re-sample our battery data. We don't actually power manage
@@ -163,17 +188,6 @@ populateBattery:
 	if(!fBattery) 
 		return false;
 
-	fBattery->attach(this);
-
-	fBattery->start(this);
-
-    // Command gate for ACPIBatteryManager
-    fManagerGate = IOCommandGate::commandGate(this);
-    if (!fManagerGate) {
-        return false;
-    }
-    wl->addEventSource(fManagerGate);
-
     // Command gate for ACPIBattery
     fBatteryGate = IOCommandGate::commandGate(fBattery);
     if (!fBatteryGate) {
@@ -181,18 +195,13 @@ populateBattery:
     }
     wl->addEventSource(fBatteryGate);
 
-	fBattery->registerService(0);
+    fBattery->attach(this);
+	fBattery->start(this);
 
 skipBattery:
 
     this->setName("AppleSmartBatteryManager");
 	this->registerService(0);
-    
-    // add to battery tracker
-    fTracker = OSDynamicCast(BatteryTracker, waitForMatchingService(serviceMatching(kBatteryTrackerService)));
-    if (NULL != fTracker) {
-        fTracker->addBatteryManager(this);
-    }
 
     return true;
 }
@@ -205,14 +214,16 @@ void AppleSmartBatteryManager::stop(IOService *provider)
 {
 	DebugLog("AppleSmartBatteryManager::stop: called\n");
 
-    // remove from battery tracker
-    if (NULL != fTracker) {
-        fTracker->removeBatteryManager(this);
-        fTracker->release();
-        fTracker = NULL;
-    }
-	
     fBattery->detach(this);
+    
+    // Free device matching notifiers
+    fPublishNotify->remove();
+    fTerminateNotify->remove();
+    OSSafeReleaseNULL(fPublishNotify);
+    OSSafeReleaseNULL(fTerminateNotify);
+    
+    fBatteryServices->flushCollection();
+    OSSafeReleaseNULL(fBatteryServices);
     
     fBattery->free();
     fBattery->stop(this);
@@ -231,6 +242,67 @@ void AppleSmartBatteryManager::stop(IOService *provider)
     
     super::stop(provider);
 }
+
+/******************************************************************************
+ * AppleSmartBattery::gatedHandler
+ *
+ ******************************************************************************/
+
+void AppleSmartBatteryManager::gatedHandler(IOService* newService, IONotifier * notifier)
+{
+    AppleSmartBattery*  battery = OSDynamicCast(AppleSmartBattery, newService);
+    
+    if (battery != NULL) {
+        if (notifier == fPublishNotify) {
+            DebugLog("%s: Notification consumer published: %s\n", getName(), battery->getName());
+            fBatteryServices->setObject(battery);
+        }
+
+        if (notifier == fTerminateNotify) {
+            DebugLog("%s: Notification consumer terminated: %s\n", getName(), battery->getName());
+            fBatteryServices->removeObject(battery);
+        }
+    }
+}
+
+/******************************************************************************
+ * AppleSmartBattery::notificationHandler
+ *
+ ******************************************************************************/
+
+bool AppleSmartBatteryManager::notificationHandler(void * refCon, IOService * newService, IONotifier * notifier)
+{
+    if (!fBatteryGate)
+        return false;
+
+    fBatteryGate->runAction((IOCommandGate::Action)OSMemberFunctionCast(IOCommandGate::Action, this, &AppleSmartBatteryManager::gatedHandler), newService, notifier, NULL, NULL);
+    return true;
+}
+
+/******************************************************************************
+ * AppleSmartBattery::areBatteriesDischarging
+ *
+ ******************************************************************************/
+
+bool AppleSmartBatteryManager::areBatteriesDischarging(AppleSmartBattery * except)
+{
+    // Query if any batteries are discharging
+    OSCollectionIterator* i = OSCollectionIterator::withCollection(fBatteryServices);
+    
+    if (i != NULL) {
+        while (AppleSmartBattery* battery = OSDynamicCast(AppleSmartBattery, i->getNextObject()))  {
+            if (battery->fBatteryPresent && !battery->fACConnected) {
+                return true;
+                break;
+            }
+        }
+    }
+
+    i->release();
+
+    return false;
+}
+
 
 /******************************************************************************
  * AppleSmartBatteryManager::setPollingInterval
@@ -373,7 +445,7 @@ IOReturn AppleSmartBatteryManager::getBatteryBIF(void)
             setProperty("Battery Information", acpibat_bif);
             value = fBattery->setBatteryBIF(acpibat_bif);
         }
-        OSSafeRelease(fBatteryBIF);
+        OSSafeReleaseNULL(fBatteryBIF);
 		return value;
 	} 
     else 
@@ -402,7 +474,7 @@ IOReturn AppleSmartBatteryManager::getBatteryBIX(void)
             setProperty("Battery Extended Information", acpibat_bix);
             value = fBattery->setBatteryBIX(acpibat_bix);
         }
-		OSSafeRelease(fBatteryBIX);
+		OSSafeReleaseNULL(fBatteryBIX);
 		return value;
 	}
     else 
@@ -431,7 +503,7 @@ IOReturn AppleSmartBatteryManager::getBatteryBBIX(void)
             setProperty("Battery Extra Information", acpibat_bbix);
             value = fBattery->setBatteryBBIX(acpibat_bbix);
         }
-		OSSafeRelease(fBatteryBBIX);
+		OSSafeReleaseNULL(fBatteryBBIX);
 		return value;
 	} 
     else 
@@ -460,7 +532,7 @@ IOReturn AppleSmartBatteryManager::getBatteryBST(void)
             setProperty("Battery Status", acpibat_bst);
             value = fBattery->setBatteryBST(acpibat_bst);
         }
-		OSSafeRelease(fBatteryBST);
+		OSSafeReleaseNULL(fBatteryBST);
 		return value;
 	}
 	else
@@ -468,19 +540,6 @@ IOReturn AppleSmartBatteryManager::getBatteryBST(void)
         DebugLog("evaluateObject error 0x%x\n", evaluateStatus);
 		return kIOReturnError;
 	}
-}
-
-/*****************************************************************************
- * AppleSmartBatteryManager::notifyConnectedState
- * Cause a fresh battery poll in workloop to check AC status
- ******************************************************************************/
-
-void AppleSmartBatteryManager::notifyConnectedState(bool connected)
-{
-    if (NULL != fBatteryGate && NULL != fBattery)
-    {
-        fBattery->notifyConnectedState(connected);
-    }
 }
 
 /*****************************************************************************
@@ -574,7 +633,7 @@ OSObject* AppleSmartBatteryManager::translateArray(OSArray* array)
             if (trans)
                 obj = trans;
             dict->setObject(key, obj);
-            OSSafeRelease(trans);
+            OSSafeReleaseNULL(trans);
         }
         result = dict;
     }
@@ -595,13 +654,13 @@ OSDictionary* AppleSmartBatteryManager::getConfigurationOverride(const char* met
     OSArray* array = OSDynamicCast(OSArray, r);
     if (array)
         obj = translateArray(array);
-    OSSafeRelease(r);
+    OSSafeReleaseNULL(r);
 
     // must be dictionary after translation, even though array is possible
     OSDictionary* result = OSDynamicCast(OSDictionary, obj);
     if (!result)
     {
-        OSSafeRelease(obj);
+        OSSafeReleaseNULL(obj);
         return NULL;
     }
     return result;

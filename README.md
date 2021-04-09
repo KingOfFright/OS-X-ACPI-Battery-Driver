@@ -78,6 +78,20 @@ http://www.tonymacx86.com/hp-probook/69472-battery-manager-fix-boot-without-batt
 
 ### Change Log:
 
+2018-10-5 v1.90.1
+
+- fix a crash in ACPIBatteryManager due to notifications received very early in startup (may be in invalid configurations)
+
+
+2018-09-15 v1.90
+
+- merge 'refactor' branch from the-darkvoid (details below)
+
+- removed BatteryTracker and allow existing services to communicate directly
+
+- drive AC status purely through ACPIACAdapter, not through battery charging/discharging status
+
+
 2017-10-01 v1.81.4
 
 - add kernel flag "abm_firstpolldelay" to allow override of FirstPollDelay with simple kernel flag entry (config.plist/Boot/Arguments).  For example, to set FirstPollDelay to 16000 (16 seconds), use abm_firstpolldelay=16000

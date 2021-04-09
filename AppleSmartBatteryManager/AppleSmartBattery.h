@@ -193,8 +193,6 @@ protected:
 
 	uint8_t                 fInitialPollCountdown;;
     uint32_t                fEstimateCycleCountDivisor;
-    
-    BatteryTracker*         fTracker;
 
     bool                    fUseDesignVoltageForDesignCapacity;
     bool                    fUseDesignVoltageForMaxCapacity;
@@ -362,7 +360,6 @@ private:
 	UInt32	fAverageTimeToFull;
 	UInt32  fManufactureDate;
 
-    int fRealAC;
     int fStartupFastPoll;
 
 public:

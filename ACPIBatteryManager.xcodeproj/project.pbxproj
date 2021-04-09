@@ -12,8 +12,6 @@
 		0C4B240714598CD00080D960 /* AppleSmartBattery.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0C4B240514598CD00080D960 /* AppleSmartBattery.cpp */; };
 		0C4B240814598CD00080D960 /* AppleSmartBattery.h in Headers */ = {isa = PBXBuildFile; fileRef = 0C4B240614598CD00080D960 /* AppleSmartBattery.h */; };
 		84440B911838131700779871 /* ACAdapter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 84440B901838131700779871 /* ACAdapter.cpp */; };
-		8494BAA8184E6F2100674D3E /* BatteryTracker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8494BAA6184E6F2100674D3E /* BatteryTracker.cpp */; };
-		8494BAA9184E6F2100674D3E /* BatteryTracker.h in Headers */ = {isa = PBXBuildFile; fileRef = 8494BAA7184E6F2100674D3E /* BatteryTracker.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,8 +27,6 @@
 		84440B8F183811A400779871 /* ACAdapter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ACAdapter.h; sourceTree = "<group>"; };
 		84440B901838131700779871 /* ACAdapter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = ACAdapter.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		844778D216E7FC2400B27895 /* makefile */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.make; path = makefile; sourceTree = SOURCE_ROOT; usesTabs = 1; };
-		8494BAA6184E6F2100674D3E /* BatteryTracker.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = BatteryTracker.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
-		8494BAA7184E6F2100674D3E /* BatteryTracker.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BatteryTracker.h; sourceTree = "<group>"; };
 		84D49F6818381F260009CA74 /* IOPMPrivate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = IOPMPrivate.h; sourceTree = "<group>"; };
 		ED6DFB381CC677BD00FF57A6 /* SSDT-ACPIBATT.dsl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "SSDT-ACPIBATT.dsl"; sourceTree = SOURCE_ROOT; };
 		ED7BCA381CFE648400D36255 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
@@ -89,8 +85,6 @@
 			children = (
 				844778D216E7FC2400B27895 /* makefile */,
 				EDE11A941BADE828009023F7 /* Patches */,
-				8494BAA7184E6F2100674D3E /* BatteryTracker.h */,
-				8494BAA6184E6F2100674D3E /* BatteryTracker.cpp */,
 				84440B8F183811A400779871 /* ACAdapter.h */,
 				84440B901838131700779871 /* ACAdapter.cpp */,
 				0C4B240614598CD00080D960 /* AppleSmartBattery.h */,
@@ -131,7 +125,6 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8494BAA9184E6F2100674D3E /* BatteryTracker.h in Headers */,
 				0C4B238A14598AD20080D960 /* AppleSmartBatteryManager.h in Headers */,
 				0C4B240814598CD00080D960 /* AppleSmartBattery.h in Headers */,
 			);
@@ -211,7 +204,6 @@
 			files = (
 				0C4B238C14598AD20080D960 /* AppleSmartBatteryManager.cpp in Sources */,
 				0C4B240714598CD00080D960 /* AppleSmartBattery.cpp in Sources */,
-				8494BAA8184E6F2100674D3E /* BatteryTracker.cpp in Sources */,
 				84440B911838131700779871 /* ACAdapter.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -254,7 +246,7 @@
 				LLVM_LTO = NO;
 				"LLVM_LTO[arch=x86_64]" = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
-				MODULE_VERSION = 1.81.4;
+				MODULE_VERSION = 1.90.1;
 				OTHER_CFLAGS = "-fno-stack-protector";
 				"OTHER_LDFLAGS[arch=x86_64]" = "-dead_strip";
 				SDKROOT = macosx10.8;
@@ -284,7 +276,7 @@
 				LLVM_LTO = NO;
 				"LLVM_LTO[arch=x86_64]" = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
-				MODULE_VERSION = 1.81.4;
+				MODULE_VERSION = 1.90.1;
 				OTHER_CFLAGS = "-fno-stack-protector";
 				"OTHER_LDFLAGS[arch=x86_64]" = "-dead_strip";
 				SDKROOT = macosx10.8;

@@ -172,8 +172,6 @@ bool AppleSmartBattery::init(void)
     fWorkLoop = NULL;
     fPollTimer = NULL;
 
-    fTracker = NULL;
-
     fCellVoltages = NULL;
 
     return true;
@@ -299,7 +297,7 @@ bool AppleSmartBattery::loadConfiguration()
         fFirstPollDelay = pollDelay;
 
     // Configuration done, release allocated merged configuration
-    OSSafeRelease(merged);
+    OSSafeReleaseNULL(merged);
 
     return true;
 }
@@ -346,9 +344,6 @@ bool AppleSmartBattery::start(IOService *provider)
     {
         return false;
     }
-    
-    // get tracker for status of other batteries
-    fTracker = OSDynamicCast(BatteryTracker, waitForMatchingService(serviceMatching(kBatteryTrackerService)));
 
     this->setName("AppleSmartBattery");
 	
@@ -384,7 +379,9 @@ bool AppleSmartBattery::start(IOService *provider)
         fFirstTimer = false;
         fPollTimer->setTimeoutMS(fFirstPollDelay);
     }
-	
+    
+    registerService(0);
+
     return true;
 }
 
@@ -395,8 +392,6 @@ bool AppleSmartBattery::start(IOService *provider)
 
 void AppleSmartBattery::stop(IOService *provider)
 {
-    OSSafeReleaseNULL(fTracker);
-
     OSSafeReleaseNULL(fCellVoltages);
 
     super::stop(provider);
@@ -471,8 +466,6 @@ bool AppleSmartBattery::pollBatteryState(int path)
     {
         //rehabman: added to correct power source Battery if boot w/ no batteries
         DebugLog("!fBatteryPresent\n");
-        fACConnected = true;
-        setExternalConnected(fACConnected);
         setFullyCharged(false);
         clearBatteryState(true);
     }
@@ -489,8 +482,8 @@ bool AppleSmartBattery::pollBatteryState(int path)
                 fPollingInterval = kDefaultPollInterval;
         }
 
-        DebugLog("fRealAC=%d, fACConnected=%d\n", fRealAC, fACConnected);
-        if (-1 == fRealAC || fRealAC == fACConnected)
+        DebugLog("fACConnected=%d\n", fACConnected);
+        if (fACConnected)
         {
             // Restart timer with standard polling interval
             fPollTimer->setTimeoutMS(milliSecPollingTable[fPollingInterval]);
@@ -533,12 +526,23 @@ void AppleSmartBattery::handleBatteryRemoved()
 
 void AppleSmartBattery::notifyConnectedState(bool connected)
 {
-    fRealAC = connected;
+    if (externalConnected() != connected) {
+        DebugLog("notifyConnected: AC power state changed: %d\n", connected);
+
+        setExternalConnected(connected);
+        settingsChangedSinceUpdate = true;
+        updateStatus();
+    }
+
+    fACConnected = connected;
+
+/*
     if (fBatteryPresent)
     {
         // on AC status change, poll right away (will set quick timer if AC is out-of-sync)
         pollBatteryState(kExistingBatteryPath);
     }
+*/
 }
 
 /******************************************************************************
@@ -619,7 +623,6 @@ void AppleSmartBattery::clearBatteryState(bool do_update)
     // We just zero out the int and bool values, but remove the OSType values.
 
     fBatteryPresent = false;
-    fACConnected = false;
     fACChargeCapable = false;
 	
     setBatteryInstalled(false);
@@ -693,8 +696,6 @@ void AppleSmartBattery::clearBatteryState(bool do_update)
     removeProperty(_BatterySerialNumberSym);
 	
     rebuildLegacyIOBatteryInfo(do_update);
-
-    fRealAC = -1;   // real AC status is unknown...
 	
     if(do_update) {
         updateStatus();
@@ -737,8 +738,8 @@ void AppleSmartBattery::rebuildLegacyIOBatteryInfo(bool do_update)
         OSNumber* flags_num = OSNumber::withNumber((unsigned long long)flags, NUM_BITS);
         if (!legacyDict || !flags_num)
         {
-            OSSafeRelease(legacyDict);
-            OSSafeRelease(flags_num);
+            OSSafeReleaseNULL(legacyDict);
+            OSSafeReleaseNULL(flags_num);
             return;
         }
 
@@ -1415,10 +1416,10 @@ IOReturn AppleSmartBattery::setBatteryBIX(OSArray *acpibat_bix)
     setFirmwareSerialNumber(serialNumber);
     setBatterySerialNumber(deviceName, OSDynamicCast(OSSymbol, getProperty(kIOPMPSSerialKey)));
 
-    OSSafeRelease(deviceName);
-    OSSafeRelease(type);
-    OSSafeRelease(manufacturer);
-    OSSafeRelease(serialNumber);
+    OSSafeReleaseNULL(deviceName);
+    OSSafeReleaseNULL(type);
+    OSSafeReleaseNULL(manufacturer);
+    OSSafeReleaseNULL(serialNumber);
 
 	setCycleCount(fCycleCount);
 
@@ -1728,8 +1729,6 @@ IOReturn AppleSmartBattery::setBatteryBST(OSArray *acpibat_bst)
 		setFullyCharged(false);
 		setIsCharging(false);
 		
-		fACConnected = true;
-		setExternalConnected(fACConnected);
 		fACChargeCapable = false;
 		setExternalChargeCapable(fACChargeCapable);
 		
@@ -1749,8 +1748,6 @@ IOReturn AppleSmartBattery::setBatteryBST(OSArray *acpibat_bst)
 		setFullyCharged(false);
 		setIsCharging(false);
 		
-		fACConnected = false;
-		setExternalConnected(fACConnected);
 		fACChargeCapable = false;
 		setExternalChargeCapable(fACChargeCapable);
 		
@@ -1782,8 +1779,6 @@ IOReturn AppleSmartBattery::setBatteryBST(OSArray *acpibat_bst)
 		setFullyCharged(false);
 		setIsCharging(true);
 		
-		fACConnected = true;
-		setExternalConnected(fACConnected);
 		fACChargeCapable = true;
 		setExternalChargeCapable(fACChargeCapable);
 		
@@ -1815,9 +1810,8 @@ IOReturn AppleSmartBattery::setBatteryBST(OSArray *acpibat_bst)
 		setFullyCharged(true);
 		setIsCharging(false);
 		
-        bool batteriesDischarging = fTracker && fTracker->anyBatteriesDischarging(this);
-		fACConnected = !batteriesDischarging;
-		setExternalConnected(fACConnected);
+        bool batteriesDischarging = fProvider->areBatteriesDischarging(this);
+
 		fACChargeCapable = !batteriesDischarging;
 		setExternalChargeCapable(fACChargeCapable);
 		

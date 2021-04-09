@@ -13,12 +13,24 @@
 
 class EXPORT ACPIACAdapter : public IOService
 {
-    OSDeclareDefaultStructors(rehab_ACPIACAdapter)
+    OSDeclareDefaultStructors(ACPIACAdapter)
     
 private:
     IOACPIPlatformDevice*   fProvider;
-    BatteryTracker*         fTracker;
+    IOWorkLoop*             fWorkloop;
+    IOCommandGate*          fCommandGate;
+    IORecursiveLock*        fLock;
     
+    IONotifier*             fPublishNotify;
+    IONotifier*             fTerminateNotify;
+    
+    OSSet*                  fBatteryServices;
+    
+    bool                    fACConnected;
+
+    void                    gatedHandler(IOService* newService, IONotifier * notifier);
+    bool                    notificationHandler(void * refCon, IOService * newService, IONotifier * notifier);
+    void                    pollState();
 public:
     virtual bool            init(OSDictionary* dict);
     virtual bool            start(IOService* provider);

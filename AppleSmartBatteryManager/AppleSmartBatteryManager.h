@@ -29,8 +29,7 @@
 
 #define AppleSmartBatteryManager AppleSmartBatteryManager // was rehab_ACPIBatteryManager
 #define AppleSmartBattery AppleSmartBattery // was rehab_ACPIBattery
-#define ACPIACAdapter rehab_ACPIACAdapter
-#define BatteryTracker rehab_BatteryTracker
+#define ACPIACAdapter ACPIACAdapter // was rehab_ACPIACAdapter
 
 #include <IOKit/IOService.h>
 #include <IOKit/acpi/IOACPIPlatformDevice.h>
@@ -41,7 +40,6 @@
 
 
 #include "AppleSmartBattery.h"
-#include "BatteryTracker.h"
 
 #ifdef DEBUG_MSG
 #define DebugLog(args...)  do { IOLog("ACPIBatteryManager: " args); } while (0)
@@ -75,17 +73,25 @@ public:
 
     IOReturn setPowerState(unsigned long which, IOService *whom);
     IOReturn message(UInt32 type, IOService *provider, void *argument);
+    
+    bool                    areBatteriesDischarging(AppleSmartBattery * except);
 
 private:
 	
-    IOCommandGate           *fManagerGate;
     IOCommandGate           *fBatteryGate;
 	IOACPIPlatformDevice    *fProvider;
 	AppleSmartBattery       *fBattery;
     UInt32                  fBatterySTA;
-    BatteryTracker          *fTracker;
 
 	IOReturn setPollingInterval(int milliSeconds);
+    
+    IONotifier*             fPublishNotify;
+    IONotifier*             fTerminateNotify;
+    
+    OSSet*                  fBatteryServices;
+    
+    void                    gatedHandler(IOService* newService, IONotifier * notifier);
+    bool                    notificationHandler(void * refCon, IOService * newService, IONotifier * notifier);
 
 public:
     OSDictionary* getConfigurationOverride(const char* method);
@@ -107,9 +113,6 @@ public:
     
     IOReturn validateBatteryBIX(void);
     IOReturn validateBatteryBBIX(void);
-    
-    // For AC adapter notification
-    void notifyConnectedState(bool connected);
 };
 
 #endif
